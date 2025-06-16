@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>블루 아카이브 아이템 찾기 도우미</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #333;
+        }
+
+        #app-container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 900px; /* 넓은 화면 지원 */
+            width: 100%;
+            gap: 25px;
+        }
+
+        h1 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        p {
+            font-size: 0.95em;
+            line-height: 1.6;
+            text-align: center;
+            color: #666;
+        }
+
+        .section-header {
+            width: 100%;
+            text-align: left;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #5a67d8;
+            padding-bottom: 5px;
+        }
+
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(9, 60px);
+            grid-template-rows: repeat(5, 60px);
+            border: 2px solid #5a67d8;
+            background-color: #e0e7ff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .grid-cell {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #c3dafe;
+            display: flex;
+            flex-direction: column; /* For coord and content */
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: #4a5568;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-sizing: border-box;
+            position: relative;
+            user-select: none; /* Prevent text selection */
+            overflow: hidden; /* Hide overflowing text */
+        }
+
+        .cell-coord {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 0.6em;
+            color: rgba(0, 0, 0, 0.4);
+            z-index: 1; /* Ensure coordinates are always visible */
+        }
+        
+        .cell-probability {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            color: #007bff; /* Blue for probability */
+            z-index: 1;
+        }
+
+        .grid-cell.hidden-state {
+            background-color: #a0a0a0;
+            color: #f7fafc;
+        }
+
+        .grid-cell.miss-state {
+            background-color: #cfd8dc;
+            color: #78909c;
+        }
+        
+        .grid-cell.item-state {
+            background-color: #e0ffe0; /* Default for found items */
+            color: #2d3748;
+        }
+
+        .grid-cell.recommended {
+            border: 3px solid #ffcc00; /* Highlight recommended cells */
+            box-shadow: 0 0 15px rgba(255, 204, 0, 0.7);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+
+        #item-definition-panel {
+            width: 100%;
+            background-color: #edf2f7;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        .item-definition-group {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #c3dafe;
+        }
+        .item-definition-group:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .item-definition-group label {
+            font-weight: 500;
+            color: #2d3748;
+            min-width: 80px;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .item-definition-group input[type="text"],
+        .item-definition-group input[type="number"],
+        .item-definition-group input[type="color"] {
+            padding: 8px;
+            border: 1px solid #c3dafe;
+            border-radius: 6px;
+            font-size: 0.9em;
+            flex-grow: 1;
+            min-width: 50px;
+        }
+        .item-definition-group input[type="number"] {
+            width: 60px; /* Specific width for numbers */
+        }
+        .item-definition-group input[type="color"] {
+            width: 40px;
+            height: 38px;
+            padding: 2px;
+            cursor: pointer;
+        }
+        .item-definition-group .input-pair {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-grow: 1;
+            min-width: 120px; /* Ensure inputs don't get too small */
+        }
+
+        #item-input-panel { /* This panel is for remaining counts based on defined items */
+            width: 100%;
+            background-color: #edf2f7;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .item-input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #c3dafe;
+        }
+        .item-input-group:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .item-input-group label {
+            font-weight: 500;
+            color: #2d3748;
+            flex-grow: 1;
+            margin-right: 15px;
+        }
+
+        .item-input-group input[type="number"] {
+            width: 70px;
+            padding: 8px;
+            border: 1px solid #c3dafe;
+            border-radius: 6px;
+            font-size: 1em;
+            text-align: center;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        button {
+            background-color: #4c51bf;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 4px 10px rgba(76, 81, 191, 0.3);
+            font-weight: 600;
+            flex-grow: 1;
+            max-width: 200px;
+        }
+
+        button:hover {
+            background-color: #5a67d8;
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            background-color: #3b43a3;
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(76, 81, 191, 0.2);
+        }
+
+        #recommendation-panel {
+            margin-top: 25px;
+            width: 100%;
+            background-color: #e6fffa;
+            border: 1px solid #81e6d9;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #recommendation-panel h3 {
+            color: #38a169;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        #recommendation-list {
+            list-style: none;
+            padding: 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        #recommendation-list li {
+            background-color: #fff;
+            border: 1px solid #b2f5ea;
+            border-radius: 6px;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            font-size: 1.05em;
+            font-weight: 500;
+            color: #2d3748;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            display: inline-block; /* For horizontal flow on larger screens */
+            margin-right: 10px;
+        }
+        #recommendation-list li:last-child {
+            margin-right: 0;
+        }
+
+        #message-area {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #e53e3e;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        
+        .loading-indicator {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-top: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #grid-container {
+                grid-template-columns: repeat(9, calc((100vw - 100px) / 9)); /* Adjust for padding and some margin */
+                grid-template-rows: repeat(5, calc((100vw - 100px) / 9));
+            }
+            .grid-cell {
+                width: auto;
+                height: auto;
+            }
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            button {
+                width: 100%;
+                max-width: 250px;
+            }
+            #recommendation-list li {
+                display: block; /* Stack vertically on small screens */
+                margin-right: 0;
+                margin-bottom: 8px;
+            }
+            .item-definition-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .item-definition-group label {
+                width: 100%;
+                text-align: left;
+                padding-right: 0;
+                margin-bottom: 5px;
+            }
+            .item-definition-group input[type="text"],
+            .item-definition-group input[type="number"],
+            .item-definition-group input[type="color"] {
+                width: calc(100% - 10px);
+            }
+            .item-definition-group .input-pair {
+                width: 100%;
+                justify-content: space-between;
+                flex-wrap: wrap;
+            }
+            .item-definition-group .input-pair input {
+                flex-grow: 1;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <h1>블루 아카이브 아이템 찾기 도우미</h1>
+        <p>현재 게임판의 상태와 남은 아이템 정보를 입력하시면, 다음으로 열 칸을 확률적으로 추천해 드립니다.</p>
+
+        <h2 class="section-header">1. 아이템 종류 정의 (매 판마다 변경 가능)</h2>
+        <div id="item-definition-panel">
+            <!-- Dynamic item definition inputs will be rendered here -->
+        </div>
+
+        <h2 class="section-header">2. 격자판 상태 입력 (클릭하여 상태 변경)</h2>
+        <div id="grid-container">
+            <!-- Grid cells will be dynamically generated here -->
+        </div>
+
+        <h2 class="section-header">3. 남은 아이템 개수 입력</h2>
+        <div id="item-input-panel">
+            <!-- Remaining item count inputs will be dynamically generated here based on defined items -->
+        </div>
+
+        <div class="button-group">
+            <button id="calculate-button">수동 계산 (필요시)</button>
+            <button id="reset-button">초기화</button>
+        </div>
+
+        <div class="loading-indicator" id="loading-spinner"></div>
+        <div id="message-area"></div>
+
+        <h2 class="section-header">4. 추천 결과</h2>
+        <div id="recommendation-panel">
+            <h3>여기를 열어보세요!</h3>
+            <ul id="recommendation-list">
+                <li>데이터를 입력하면 실시간으로 계산됩니다.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const GRID_ROWS = 5;
+        const GRID_COLS = 9;
+        const TOTAL_CELLS = GRID_ROWS * GRID_COLS;
+        const NUM_SIMULATIONS = 3000; // Probability calculation simulations (higher = more accurate, slower)
+        const MAX_PLACEMENT_ATTEMPTS_PER_ITEM = 1000; // Item placement attempts in a simulation
+
+        // Default Item Definitions (initial values, user can change)
+        const DEFAULT_ITEM_DEFINITIONS = [
+            { id: 'item0', name: '오파츠 뭉치 (대)', width: 3, height: 2, total_count: 1, color: '#fdd835' },
+            { id: 'item1', name: '기술 노트 묶음 (중)', width: 2, height: 2, total_count: 1, color: '#4caf50' },
+            { id: 'item2', name: '기본 재료 상자 (소)', width: 1, height: 1, total_count: 5, color: '#ff7043' }
+        ];
+
+        // Global mutable item definitions, will be populated from UI
+        let currentItemDefinitions = [];
+
+        // Grid State: Each cell's current status as input by the user
+        // { type: 'hidden' | 'miss' | 'item', itemName: string | null, itemId: string | null, probability: number (for display) }
+        let currentGridState = [];
+
+        // Remaining items count (user input, based on currentItemDefinitions)
+        let remainingItemsCount = {}; // { 'Item Name': count }
+
+        // DOM Elements
+        const itemDefinitionPanel = document.getElementById('item-definition-panel');
+        const gridContainer = document.getElementById('grid-container');
+        const itemInputPanel = document.getElementById('item-input-panel');
+        const calculateButton = document.getElementById('calculate-button'); // Now "Manual Calculate (if needed)"
+        const resetButton = document.getElementById('reset-button');
+        const recommendationList = document.getElementById('recommendation-list');
+        const messageArea = document.getElementById('message-area');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        /**
+         * Initializes the application UI and state.
+         */
+        function initializeApp() {
+            // Initialize item definitions with defaults
+            currentItemDefinitions = JSON.parse(JSON.stringify(DEFAULT_ITEM_DEFINITIONS));
+            renderItemDefinitions(); // Render editable item definition fields
+            renderGrid(); // Render the grid
+            resetState(); // Reset grid state and remaining item counts
+            messageArea.textContent = '';
+            calculateAndRecommend(); // Initial calculation
+        }
+
+        /**
+         * Resets the grid state, item counts, and recommendations.
+         */
+        function resetState() {
+            currentGridState = Array.from({ length: TOTAL_CELLS }, (_, i) => ({
+                index: i,
+                type: 'hidden',
+                itemName: null,
+                itemId: null,
+                probability: 0 // Reset probability
+            }));
+
+            remainingItemsCount = {};
+            // Populate remaining items based on currentItemDefinitions
+            currentItemDefinitions.forEach(item => {
+                remainingItemsCount[item.name] = item.total_count;
+            });
+
+            updateGridUI(); // Update grid visual (clears probabilities)
+            renderRemainingItemInputs(); // Re-render remaining item inputs
+            recommendationList.innerHTML = '<li>데이터를 입력하면 실시간으로 계산됩니다.</li>';
+            messageArea.textContent = '';
+            hideLoadingSpinner();
+        }
+
+        /**
+         * Renders editable input fields for defining item types (name, size, total count, color).
+         */
+        function renderItemDefinitions() {
+            itemDefinitionPanel.innerHTML = '';
+            currentItemDefinitions.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.classList.add('item-definition-group');
+
+                // Item Name
+                let inputHtml = `
+                    <label for="def-name-${item.id}">이름:</label>
+                    <input type="text" id="def-name-${item.id}" value="${item.name}" placeholder="아이템 이름" data-item-property="name" data-item-id="${item.id}">
+                `;
+
+                // Width & Height
+                inputHtml += `
+                    <label for="def-width-${item.id}">크기 (가로x세로):</label>
+                    <div class="input-pair">
+                        <input type="number" id="def-width-${item.id}" value="${item.width}" min="1" max="${GRID_COLS}" data-item-property="width" data-item-id="${item.id}"> x
+                        <input type="number" id="def-height-${item.id}" value="${item.height}" min="1" max="${GRID_ROWS}" data-item-property="height" data-item-id="${item.id}">
+                    </div>
+                `;
+                
+                // Total Count
+                inputHtml += `
+                    <label for="def-count-${item.id}">총 개수:</label>
+                    <input type="number" id="def-count-${item.id}" value="${item.total_count}" min="0" data-item-property="total_count" data-item-id="${item.id}">
+                `;
+
+                // Color Picker
+                inputHtml += `
+                    <label for="def-color-${item.id}">색상:</label>
+                    <input type="color" id="def-color-${item.id}" value="${item.color}" data-item-property="color" data-item-id="${item.id}">
+                `;
+
+                div.innerHTML = inputHtml;
+                itemDefinitionPanel.appendChild(div);
+            });
+
+            // Add event listeners for changes to item definitions
+            itemDefinitionPanel.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', handleItemDefinitionChange);
+                input.addEventListener('input', handleItemDefinitionChange); // For immediate updates on text/number
+            });
+        }
+
+        /**
+         * Handles changes to item definition input fields, updating `currentItemDefinitions`.
+         * @param {Event} e - The change event.
+         */
+        function handleItemDefinitionChange(e) {
+            const itemId = e.target.dataset.itemId;
+            const property = e.target.dataset.itemProperty;
+            const value = e.target.type === 'number' ? parseInt(e.target.value) : e.target.value;
+
+            const itemIndex = currentItemDefinitions.findIndex(item => item.id === itemId);
+            if (itemIndex !== -1) {
+                // Basic validation for numbers
+                if (e.target.type === 'number' && (isNaN(value) || value < 0)) {
+                    messageArea.textContent = `오류: ${property} 값은 0보다 크거나 같아야 합니다.`;
+                    e.target.value = currentItemDefinitions[itemIndex][property]; // Revert to old value
+                    return;
+                }
+                if (property === 'width' && value > GRID_COLS) {
+                    messageArea.textContent = `오류: 가로 크기는 ${GRID_COLS}를 초과할 수 없습니다.`;
+                    e.target.value = currentItemDefinitions[itemIndex][property];
+                    return;
+                }
+                if (property === 'height' && value > GRID_ROWS) {
+                    messageArea.textContent = `오류: 세로 크기는 ${GRID_ROWS}를 초과할 수 없습니다.`;
+                    e.target.value = currentItemDefinitions[itemIndex][property];
+                    return;
+                }
+
+                const oldName = currentItemDefinitions[itemIndex].name; // Capture old name before updating
+                currentItemDefinitions[itemIndex][property] = value;
+                messageArea.textContent = ''; // Clear previous messages
+
+                // Handle changes to name or total_count specifically for remainingItemsCount
+                if (property === 'name') {
+                    // If name changed, transfer the remaining count to the new name
+                    if (oldName !== currentItemDefinitions[itemIndex].name) {
+                        const newName = currentItemDefinitions[itemIndex].name;
+                        // If old name existed in remainingItemsCount, transfer its value
+                        if (remainingItemsCount[oldName] !== undefined) {
+                            remainingItemsCount[newName] = remainingItemsCount[oldName];
+                        } else {
+                            // If old name did not exist, initialize with new item's total count
+                            remainingItemsCount[newName] = currentItemDefinitions[itemIndex].total_count;
+                        }
+                        // Delete old name entry if it existed
+                        if (remainingItemsCount.hasOwnProperty(oldName)) {
+                            delete remainingItemsCount[oldName];
+                        }
+                    }
+                } else if (property === 'total_count') {
+                    // If total_count changed, update remaining count based on new total and current remaining
+                    const currentRemaining = remainingItemsCount[currentItemDefinitions[itemIndex].name];
+                    const newTotal = currentItemDefinitions[itemIndex].total_count;
+
+                    // If remaining was never set, or was higher than new total, set to new total
+                    if (currentRemaining === undefined || currentRemaining > newTotal) {
+                        remainingItemsCount[currentItemDefinitions[itemIndex].name] = newTotal;
+                    }
+                    // Else (currentRemaining <= newTotal), keep currentRemaining value
+                }
+
+                // After updating currentItemDefinitions and possibly remainingItemsCount,
+                // re-render the remaining item inputs to reflect state.
+                renderRemainingItemInputs(); // Re-render the input section
+                updateGridUI(); // Re-render grid to update cell colors if item definition colors changed
+                calculateAndRecommend(); // Recalculate on item definition change
+            }
+        }
+
+        /**
+         * Renders the 9x5 grid cells initially.
+         */
+        function renderGrid() {
+            gridContainer.innerHTML = '';
+            gridContainer.style.gridTemplateColumns = `repeat(${GRID_COLS}, 60px)`;
+            gridContainer.style.gridTemplateRows = `repeat(${GRID_ROWS}, 60px)`;
+
+            for (let i = 0; i < TOTAL_CELLS; i++) {
+                const cellElement = document.createElement('div');
+                cellElement.classList.add('grid-cell');
+                cellElement.dataset.index = i;
+
+                const row = Math.floor(i / GRID_COLS);
+                const col = i % GRID_COLS;
+                const coordSpan = document.createElement('span');
+                coordSpan.classList.add('cell-coord');
+                coordSpan.textContent = `(${row},${col})`;
+                cellElement.appendChild(coordSpan);
+
+                // Main content span (for item initial, X, or probability)
+                const contentSpan = document.createElement('span');
+                contentSpan.classList.add('cell-content');
+                cellElement.appendChild(contentSpan);
+
+                // Probability display span
+                const probSpan = document.createElement('span');
+                probSpan.classList.add('cell-probability');
+                cellElement.appendChild(probSpan);
+
+
+                cellElement.addEventListener('click', handleCellClick);
+                gridContainer.appendChild(cellElement);
+            }
+        }
+
+        /**
+         * Renders input fields for each item type to specify remaining counts,
+         * based on `currentItemDefinitions`.
+         */
+        function renderRemainingItemInputs() {
+            itemInputPanel.innerHTML = '';
+            currentItemDefinitions.forEach(item => {
+                const div = document.createElement('div');
+                div.classList.add('item-input-group');
+
+                const label = document.createElement('label');
+                label.textContent = `${item.name} (${item.width}x${item.height})`;
+                label.htmlFor = `rem-count-${item.id}`;
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = `rem-count-${item.id}`;
+                input.min = 0;
+                // Use the value from remainingItemsCount if it exists, otherwise use total_count from definition
+                input.value = remainingItemsCount[item.name] !== undefined ? remainingItemsCount[item.name] : item.total_count;
+                input.addEventListener('change', (e) => {
+                    remainingItemsCount[item.name] = parseInt(e.target.value) || 0;
+                    messageArea.textContent = ''; // Clear message on input change
+                    calculateAndRecommend(); // Recalculate on remaining item count change
+                });
+                input.addEventListener('input', (e) => { // Also trigger on input to update immediately
+                    remainingItemsCount[item.name] = parseInt(e.target.value) || 0;
+                    messageArea.textContent = '';
+                    calculateAndRecommend();
+                });
+
+
+                div.appendChild(label);
+                div.appendChild(input);
+                itemInputPanel.appendChild(div);
+            });
+        }
+
+        /**
+         * Updates the visual appearance of grid cells based on `currentGridState`.
+         * Clears previous recommendations and probability displays.
+         */
+        function updateGridUI() {
+            gridContainer.querySelectorAll('.grid-cell').forEach(cellElement => {
+                const index = parseInt(cellElement.dataset.index);
+                const cellState = currentGridState[index];
+
+                cellElement.classList.remove('hidden-state', 'miss-state', 'item-state', 'recommended');
+                cellElement.style.backgroundColor = ''; // Reset background
+
+                const contentSpan = cellElement.querySelector('.cell-content');
+                const probSpan = cellElement.querySelector('.cell-probability');
+                if (contentSpan) contentSpan.textContent = ''; // Clear content text
+                if (probSpan) probSpan.textContent = ''; // Clear probability text
+
+
+                switch (cellState.type) {
+                    case 'hidden':
+                        cellElement.classList.add('hidden-state');
+                        // Probability will be added by updateGridProbabilitiesDisplay
+                        break;
+                    case 'miss':
+                        cellElement.classList.add('miss-state');
+                        if (contentSpan) contentSpan.textContent = 'X';
+                        break;
+                    case 'item':
+                        cellElement.classList.add('item-state');
+                        const itemDef = currentItemDefinitions.find(def => def.name === cellState.itemName);
+                        if (itemDef) {
+                            cellElement.style.backgroundColor = itemDef.color;
+                            if (contentSpan) contentSpan.textContent = itemDef.name.substring(0, 1); // Show first letter
+                        } else {
+                            // Fallback for item name that might have been changed/deleted
+                            cellElement.style.backgroundColor = '#e0ffe0'; // Default item color
+                            if (contentSpan) contentSpan.textContent = '?'; // Unknown item
+                        }
+                        break;
+                }
+            });
+        }
+
+        /**
+         * Handles cell click to cycle through states: Hidden -> Miss -> Item1 -> Item2 -> ... -> Hidden.
+         * Automatically marks connected cells for multi-cell items.
+         * @param {Event} event - The click event.
+         */
+        function handleCellClick(event) {
+            const index = parseInt(event.currentTarget.dataset.index);
+            const currentCell = currentGridState[index];
+
+            let nextType = 'hidden';
+            let nextItemName = null;
+            let nextItemId = null;
+
+            // Determine the next state based on current state
+            if (currentCell.type === 'hidden') {
+                nextType = 'miss';
+            } else if (currentCell.type === 'miss') {
+                if (currentItemDefinitions.length > 0) {
+                    nextType = 'item';
+                    nextItemName = currentItemDefinitions[0].name;
+                    nextItemId = currentItemDefinitions[0].id;
+                } else {
+                    nextType = 'hidden'; // No items defined
+                }
+            } else if (currentCell.type === 'item') {
+                const currentItemIndex = currentItemDefinitions.findIndex(def => def.name === currentCell.itemName);
+                if (currentItemIndex !== -1 && currentItemIndex < currentItemDefinitions.length - 1) {
+                    nextType = 'item';
+                    nextItemName = currentItemDefinitions[currentItemIndex + 1].name;
+                    nextItemId = currentItemDefinitions[currentItemIndex + 1].id;
+                } else {
+                    nextType = 'hidden'; // Cycle back to hidden
+                }
+            }
+
+            // Before changing state, if the current cell was part of a multi-cell item,
+            // we need to clear its footprint.
+            // This is a simplified approach for a helper tool:
+            // When an item cell is clicked, we effectively "unmark" the entire item
+            // that this cell *was* part of, and then re-mark based on the *new* state.
+            if (currentCell.type === 'item' && currentCell.itemName) {
+                const itemDef = currentItemDefinitions.find(def => def.name === currentCell.itemName);
+                if (itemDef) {
+                    unmarkItemArea(currentGridState, itemDef.name, itemDef.id);
+                }
+            }
+
+            // Update the clicked cell
+            currentGridState[index].type = nextType;
+            currentGridState[index].itemName = nextItemName;
+            currentGridState[index].itemId = nextItemId;
+
+
+            // If the new state is an item, try to mark its full area
+            if (nextType === 'item' && nextItemName) {
+                const itemDef = currentItemDefinitions.find(def => def.name === nextItemName);
+                if (itemDef) {
+                    const row = Math.floor(index / GRID_COLS);
+                    const col = index % GRID_COLS;
+
+                    // Try to mark the item's full area based on current cell as top-left
+                    // Prioritize horizontal, then vertical if horizontal is impossible/out of bounds
+                    let marked = false;
+                    
+                    // Option 1: Horizontal placement
+                    if (col + itemDef.width <= GRID_COLS && row + itemDef.height <= GRID_ROWS &&
+                        canMarkItemArea(currentGridState, row, col, itemDef.width, itemDef.height, nextItemName, nextItemId)) {
+                        markItemArea(currentGridState, row, col, itemDef.width, itemDef.height, nextItemName, nextItemId);
+                        marked = true;
+                    }
+                    // Option 2: Vertical placement
+                    else if (col + itemDef.height <= GRID_COLS && row + itemDef.width <= GRID_ROWS &&
+                             canMarkItemArea(currentGridState, row, col, itemDef.height, itemDef.width, nextItemName, nextItemId)) {
+                        markItemArea(currentGridState, row, col, itemDef.height, itemDef.width, nextItemName, nextItemId);
+                        marked = true;
+                    }
+
+                    if (!marked) {
+                        messageArea.textContent = `주의: '${itemDef.name}'(${itemDef.width}x${itemDef.height})은(는) 이 위치에 완전히 배치될 수 없습니다. 아이템의 좌측 상단 셀을 클릭하거나, 크기를 조절해 주세요.`;
+                        // Revert the clicked cell to hidden if it cannot be fully placed as an item
+                        currentGridState[index].type = 'hidden';
+                        currentGridState[index].itemName = null;
+                        currentGridState[index].itemId = null;
+                    } else {
+                        messageArea.textContent = ''; // Clear any previous warnings
+                    }
+                }
+            }
+            updateGridUI();
+            recommendationList.innerHTML = '<li>데이터를 입력하면 실시간으로 계산됩니다.</li>'; // Clear previous recommendations
+            calculateAndRecommend(); // Recalculate on grid click
+        }
+
+        /**
+         * Unmarks all cells belonging to a specific item type in the `currentGridState`.
+         * This is used when a cell part of an item is clicked, effectively clearing its full footprint.
+         * @param {Array<Object>} gridToUpdate - The grid state to update.
+         * @param {string} itemName - The name of the item to unmark.
+         * @param {string} itemId - The ID of the item to unmark.
+         */
+        function unmarkItemArea(gridToUpdate, itemName, itemId) {
+            for (let i = 0; i < TOTAL_CELLS; i++) {
+                if (gridToUpdate[i].itemName === itemName && gridToUpdate[i].itemId === itemId) {
+                    gridToUpdate[i].type = 'hidden';
+                    gridToUpdate[i].itemName = null;
+                    gridToUpdate[i].itemId = null;
+                }
+            }
+        }
+
+
+        /**
+         * Checks if an item can be marked at a given area without conflicting with existing marked cells.
+         * @param {Array<Object>} gridToCheck - The grid state to check.
+         * @param {number} startRow - Starting row.
+         * @param {number} startCol - Starting column.
+         * @param {number} width - Item width.
+         * @param {number} height - Item height.
+         * @param {string} itemName - The item name.
+         * @param {string} itemId - The item ID.
+         * @returns {boolean} True if the area is clear for marking, false otherwise.
+         */
+        function canMarkItemArea(gridToCheck, startRow, startCol, width, height, itemName, itemId) {
+            for (let r = 0; r < height; r++) {
+                for (let c = 0; c < width; c++) {
+                    const row = startRow + r;
+                    const col = startCol + c;
+                    const index = row * GRID_COLS + col;
+
+                    if (row >= GRID_ROWS || col >= GRID_COLS || index < 0 || index >= TOTAL_CELLS) {
+                        return false; // Out of bounds
+                    }
+                    // If the cell is not 'hidden' AND it's not part of the item we're trying to place (prevents self-conflict)
+                    if (gridToCheck[index].type !== 'hidden' &&
+                        !(gridToCheck[index].type === 'item' && gridToCheck[index].itemName === itemName && gridToCheck[index].itemId === itemId)) {
+                        return false; // Conflict with 'miss' or another 'item'
+                    }
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Marks all cells belonging to a multi-cell item in the `currentGridState`.
+         * @param {Array<Object>} gridToUpdate - The grid state to update.
+         * @param {number} startRow - Starting row.
+         * @param {number} startCol - Starting column.
+         * @param {number} width - Item width.
+         * @param {number} height - Item height.
+         * @param {string} itemName - The item name.
+         * @param {string} itemId - The item ID.
+         */
+        function markItemArea(gridToUpdate, startRow, startCol, width, height, itemName, itemId) {
+            for (let r = 0; r < height; r++) {
+                for (let c = 0; c < width; c++) {
+                    const index = (startRow + r) * GRID_COLS + (startCol + c);
+                    gridToUpdate[index].type = 'item';
+                    gridToUpdate[index].itemName = itemName;
+                    gridToUpdate[index].itemId = itemId; // Store item ID to distinguish instances
+                }
+            }
+        }
+
+        /**
+         * Shows the loading spinner.
+         */
+        function showLoadingSpinner() {
+            loadingSpinner.style.display = 'block';
+            calculateButton.disabled = true;
+            resetButton.disabled = true;
+        }
+
+        /**
+         * Hides the loading spinner.
+         */
+        function hideLoadingSpinner() {
+            loadingSpinner.style.display = 'none';
+            calculateButton.disabled = false;
+            resetButton.disabled = false;
+        }
+
+        /**
+         * Calculates probabilities for unrevealed cells and displays recommendations.
+         * This function is now debounced to prevent excessive calls.
+         */
+        let calculateAndRecommendTimeout;
+        async function calculateAndRecommend() {
+            clearTimeout(calculateAndRecommendTimeout);
+            calculateAndRecommendTimeout = setTimeout(async () => {
+                messageArea.textContent = '확률 계산 중... 잠시만 기다려주세요.';
+                recommendationList.innerHTML = '';
+                showLoadingSpinner();
+
+                // Allow UI to update before starting heavy computation
+                await new Promise(resolve => setTimeout(resolve, 10));
+
+                // Validate item definitions before proceeding
+                let definitionsValid = true;
+                currentItemDefinitions.forEach(item => {
+                    if (!item.name || item.name.trim() === '') {
+                        messageArea.textContent = '오류: 아이템 이름은 비워둘 수 없습니다.';
+                        definitionsValid = false;
+                    }
+                    if (isNaN(item.width) || item.width <= 0 || item.width > GRID_COLS ||
+                        isNaN(item.height) || item.height <= 0 || item.height > GRID_ROWS) {
+                        messageArea.textContent = `오류: '${item.name}'의 크기는 1보다 크고 격자판 내에 있어야 합니다. (최대 ${GRID_COLS}x${GRID_ROWS})`;
+                        definitionsValid = false;
+                    }
+                    if (isNaN(item.total_count) || item.total_count < 0) {
+                        messageArea.textContent = `오류: '${item.name}'의 총 개수는 0보다 크거나 같아야 합니다.`;
+                        definitionsValid = false;
+                    }
+                });
+
+                if (!definitionsValid) {
+                    hideLoadingSpinner();
+                    updateGridProbabilitiesDisplay([]); // Clear probabilities if definitions invalid
+                    return;
+                }
+
+                // Probability map: stores how many times each unrevealed cell contains a target item
+                const probabilityMap = Array(TOTAL_CELLS).fill(0);
+                const hiddenCellIndices = currentGridState.filter(cell => cell.type === 'hidden').map(cell => cell.index);
+
+                // Calculate how many of each item type are already marked on the grid
+                const markedItemCounts = {}; // { 'Item Name': count_of_full_items_marked_on_grid }
+                currentItemDefinitions.forEach(item => markedItemCounts[item.name] = 0);
+
+                // Iterate through the grid to count marked *full* items
+                const visitedCellsForCounting = new Set();
+                currentGridState.forEach((cell, index) => {
+                    if (cell.type === 'item' && !visitedCellsForCounting.has(index)) {
+                        const itemDef = currentItemDefinitions.find(def => def.name === cell.itemName);
+                        if (itemDef) {
+                            // Find the top-left of this instance to count it only once
+                            let instanceTopLeftIndex = index;
+                            // Go left until the column is 0 or it's not the same item
+                            while (instanceTopLeftIndex % GRID_COLS > 0 &&
+                                currentGridState[instanceTopLeftIndex - 1]?.type === 'item' &&
+                                currentGridState[instanceTopLeftIndex - 1]?.itemName === cell.itemName &&
+                                currentGridState[instanceTopLeftIndex - 1]?.itemId === cell.itemId) {
+                                instanceTopLeftIndex--;
+                            }
+                            // Go up until the row is 0 or it's not the same item
+                            while (Math.floor(instanceTopLeftIndex / GRID_COLS) > 0 &&
+                                currentGridState[instanceTopLeftIndex - GRID_COLS]?.type === 'item' &&
+                                currentGridState[instanceTopLeftIndex - GRID_COLS]?.itemName === cell.itemName &&
+                                currentGridState[instanceTopLeftIndex - GRID_COLS]?.itemId === cell.itemId) {
+                                instanceTopLeftIndex -= GRID_COLS;
+                            }
+
+                            // Check if this (potential) top-left cell hasn't been visited as a start point
+                            if (!visitedCellsForCounting.has(instanceTopLeftIndex)) {
+                                // Verify it actually marks a full item shape
+                                const startRow = Math.floor(instanceTopLeftIndex / GRID_COLS);
+                                const startCol = instanceTopLeftIndex % GRID_COLS;
+                                let isFullItemMarked = false; 
+
+                                // Check horizontal orientation
+                                if (startCol + itemDef.width <= GRID_COLS && startRow + itemDef.height <= GRID_ROWS) {
+                                    let allCellsMarkedHorizontally = true;
+                                    for (let r = 0; r < itemDef.height; r++) {
+                                        for (let c = 0; c < itemDef.width; c++) {
+                                            const currIndex = (startRow + r) * GRID_COLS + (startCol + c);
+                                            if (currIndex < 0 || currIndex >= TOTAL_CELLS ||
+                                                currentGridState[currIndex]?.type !== 'item' ||
+                                                currentGridState[currIndex]?.itemName !== cell.itemName ||
+                                                currentGridState[currIndex]?.itemId !== cell.itemId) {
+                                                allCellsMarkedHorizontally = false;
+                                                break;
+                                            }
+                                        }
+                                        if (!allCellsMarkedHorizontally) break;
+                                    }
+                                    if (allCellsMarkedHorizontally) isFullItemMarked = true;
+                                }
+
+                                // Check vertical orientation if not already marked horizontally and dimensions are different
+                                if (!isFullItemMarked && itemDef.width !== itemDef.height &&
+                                    startCol + itemDef.height <= GRID_COLS && startRow + itemDef.width <= GRID_ROWS) {
+                                    let allCellsMarkedVertically = true;
+                                    for (let r = 0; r < itemDef.width; r++) { // width becomes height
+                                        for (let c = 0; c < itemDef.height; c++) { // height becomes width
+                                            const currIndex = (startRow + r) * GRID_COLS + (startCol + c);
+                                            if (currIndex < 0 || currIndex >= TOTAL_CELLS ||
+                                                currentGridState[currIndex]?.type !== 'item' ||
+                                                currentGridState[currIndex]?.itemName !== cell.itemName ||
+                                                currentGridState[currIndex]?.itemId !== cell.itemId) {
+                                                allCellsMarkedVertically = false;
+                                                break;
+                                            }
+                                        }
+                                        if (!allCellsMarkedVertically) break;
+                                    }
+                                    if (allCellsMarkedVertically) isFullItemMarked = true;
+                                }
+
+                                if (isFullItemMarked) {
+                                    markedItemCounts[itemDef.name]++;
+                                    // Mark all cells of this identified full item as visited
+                                    const cellsToMarkVisited = [];
+                                    // Add cells for horizontal orientation
+                                    if (startCol + itemDef.width <= GRID_COLS && startRow + itemDef.height <= GRID_ROWS) {
+                                        for (let r = 0; r < itemDef.height; r++) {
+                                            for (let c = 0; c < itemDef.width; c++) {
+                                                cellsToMarkVisited.push((startRow + r) * GRID_COLS + (startCol + c));
+                                            }
+                                        }
+                                    }
+                                    // Add cells for vertical orientation (if dimensions different and found vertically)
+                                    if (itemDef.width !== itemDef.height &&
+                                        startCol + itemDef.height <= GRID_COLS && startRow + itemDef.width <= GRID_ROWS) {
+                                        for (let r = 0; r < itemDef.width; r++) {
+                                            for (let c = 0; c < itemDef.height; c++) {
+                                                cellsToMarkVisited.push((startRow + r) * GRID_COLS + (startCol + c));
+                                            }
+                                        }
+                                    }
+                                    cellsToMarkVisited.forEach(vIndex => visitedCellsForCounting.add(vIndex));
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Determine actual remaining items to place in simulations
+                const itemsToPlaceInSimulations = [];
+                let inputCountsValid = true;
+                currentItemDefinitions.forEach(itemDef => {
+                    const remainingInput = remainingItemsCount[itemDef.name];
+                    const alreadyMarked = markedItemCounts[itemDef.name];
+                    const countToPlace = remainingInput - alreadyMarked;
+
+                    if (countToPlace < 0) {
+                        messageArea.textContent = `오류: '${itemDef.name}'의 남은 개수(${remainingInput})가 이미 격자판에 표시된 개수(${alreadyMarked})보다 적습니다. 입력값을 확인해주세요.`;
+                        inputCountsValid = false;
+                        return;
+                    }
+                    if (alreadyMarked > itemDef.total_count) {
+                        messageArea.textContent = `오류: '${itemDef.name}'가 격자판에 총 개수(${itemDef.total_count})보다 많이 표시되어 있습니다.`;
+                        inputCountsValid = false;
+                        return;
+                    }
+
+                    for (let i = 0; i < countToPlace; i++) {
+                        itemsToPlaceInSimulations.push(itemDef);
+                    }
+                });
+
+                if (!inputCountsValid) {
+                    hideLoadingSpinner();
+                    updateGridProbabilitiesDisplay([]); // Clear probabilities if counts invalid
+                    return;
+                }
+
+                // Sort items by size (largest first) for more successful placements in simulations
+                itemsToPlaceInSimulations.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+
+                for (let s = 0; s < NUM_SIMULATIONS; s++) {
+                    let simulationGrid = JSON.parse(JSON.stringify(currentGridState)); // Deep copy current state
+                    let currentSimItemsToPlace = [...itemsToPlaceInSimulations]; // Copy for this sim
+
+                    let simulationSuccess = true;
+
+                    for (const item of currentSimItemsToPlace) {
+                        let placed = false;
+                        let attempts = 0;
+                        while (!placed && attempts < MAX_PLACEMENT_ATTEMPTS_PER_ITEM) {
+                            const orientation = Math.random() < 0.5 ? 'horizontal' : 'vertical';
+                            let currentWidth = orientation === 'horizontal' ? item.width : item.height;
+                            let currentHeight = orientation === 'horizontal' ? item.height : item.width;
+
+                            // Ensure item fits within grid given its orientation
+                            if (currentWidth > GRID_COLS || currentHeight > GRID_ROWS) {
+                                attempts++; // Cannot place this item in this orientation
+                                continue;
+                            }
+
+                            const startRow = Math.floor(Math.random() * (GRID_ROWS - currentHeight + 1));
+                            const startCol = Math.floor(Math.random() * (GRID_COLS - currentWidth + 1));
+
+                            if (canPlaceItemInSimulation(simulationGrid, startRow, startCol, currentWidth, currentHeight)) {
+                                placeItemInSimulation(simulationGrid, startRow, startCol, currentWidth, currentHeight, item.name, item.id);
+                                placed = true;
+                            }
+                            attempts++;
+                        }
+                        if (!placed) {
+                            simulationSuccess = false; // This simulation failed to place all items
+                            break;
+                        }
+                    }
+
+                    if (simulationSuccess) {
+                        // For successful simulations, increment probability for hidden cells that now contain an item
+                        hiddenCellIndices.forEach(index => {
+                            if (simulationGrid[index].type === 'item') {
+                                probabilityMap[index]++;
+                            }
+                        });
+                    }
+                }
+
+                // Update probabilities in currentGridState for display
+                hiddenCellIndices.forEach(index => {
+                    currentGridState[index].probability = (probabilityMap[index] / NUM_SIMULATIONS) * 100;
+                });
+
+                // Generate recommendations for the list
+                const recommendations = [];
+                hiddenCellIndices.forEach(index => {
+                    const probability = currentGridState[index].probability;
+                    if (probability > 0) { // Only recommend cells with a chance
+                        const row = Math.floor(index / GRID_COLS);
+                        const col = index % GRID_COLS;
+                        recommendations.push({ row, col, probability, index });
+                    }
+                });
+
+                recommendations.sort((a, b) => b.probability - a.probability); // Sort by highest probability first
+
+                updateGridProbabilitiesDisplay(); // Update probabilities on the grid
+                displayRecommendationList(recommendations.slice(0, 5)); // Show top 5 recommendations in the list
+                hideLoadingSpinner();
+                messageArea.textContent = '확률 계산 완료!';
+            }, 300); // Debounce to prevent too frequent calculations (adjust as needed)
+        }
+
+        /**
+         * Updates the probability display on the grid cells.
+         */
+        function updateGridProbabilitiesDisplay() {
+            gridContainer.querySelectorAll('.grid-cell').forEach(cellElement => {
+                const index = parseInt(cellElement.dataset.index);
+                const cellState = currentGridState[index];
+                const probSpan = cellElement.querySelector('.cell-probability');
+
+                // Clear previous highlights
+                cellElement.classList.remove('recommended');
+                cellElement.style.removeProperty('border');
+                cellElement.style.removeProperty('box-shadow');
+                cellElement.style.removeProperty('animation');
+
+                if (probSpan) {
+                    if (cellState.type === 'hidden' && cellState.probability > 0) {
+                        probSpan.textContent = `${cellState.probability.toFixed(1)}%`;
+                    } else {
+                        probSpan.textContent = ''; // Clear probability for non-hidden cells
+                    }
+                }
+            });
+        }
+
+
+        /**
+         * Checks if an item can be placed in a simulation grid without overlapping non-hidden cells.
+         * In simulation, we only care about 'hidden' cells.
+         * @param {Array<Object>} simGrid - The simulation grid.
+         * @param {number} startRow - Starting row.
+         * @param {number} startCol - Starting column.
+         * @param {number} width - Item width.
+         * @param {number} height - Item height.
+         * @returns {boolean} True if placement is possible, false otherwise.
+         */
+        function canPlaceItemInSimulation(simGrid, startRow, startCol, width, height) {
+            for (let r = 0; r < height; r++) {
+                for (let c = 0; c < width; c++) {
+                    const row = startRow + r;
+                    const col = startCol + c;
+                    const index = row * GRID_COLS + col;
+
+                    if (row >= GRID_ROWS || col >= GRID_COLS || index < 0 || index >= TOTAL_CELLS) {
+                        return false; // Out of bounds
+                    }
+                    // Cannot place over already revealed/missed cells or other items in the simulation
+                    if (simGrid[index].type !== 'hidden') {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Places an item in the simulation grid.
+         * @param {Array<Object>} simGrid - The simulation grid.
+         * @param {number} startRow - Starting row.
+         * @param {number} startCol - Starting column.
+         * @param {number} width - Item width.
+         * @param {number} height - Item height.
+         * @param {string} itemName - Name of the item.
+         * @param {string} itemId - ID of the item.
+         */
+        function placeItemInSimulation(simGrid, startRow, startCol, width, height, itemName, itemId) {
+            for (let r = 0; r < height; r++) {
+                for (let c = 0; c < width; c++) {
+                    const index = (startRow + r) * GRID_COLS + (startCol + c);
+                    simGrid[index].type = 'item';
+                    simGrid[index].itemName = itemName;
+                    simGrid[index].itemId = itemId;
+                }
+            }
+        }
+
+        /**
+         * Displays the calculated recommendations on the UI.
+         * @param {Array<Object>} recommendations - List of recommended cells.
+         */
+        function displayRecommendationList(recommendations) {
+            recommendationList.innerHTML = '';
+            if (recommendations.length === 0) {
+                recommendationList.innerHTML = '<li>현재 상태에서는 추천할 칸이 없습니다. 모든 아이템을 찾았거나, 더 이상 배치할 수 있는 공간이 없을 수 있습니다.</li>';
+                return;
+            }
+
+            // Highlighting is now handled by updateGridProbabilitiesDisplay based on top recommendations
+            // We only need to add the 'recommended' class for visual pulse animation here
+            const top5Indices = recommendations.slice(0, 5).map(rec => rec.index);
+             gridContainer.querySelectorAll('.grid-cell').forEach(cellElement => {
+                const index = parseInt(cellElement.dataset.index);
+                if (top5Indices.includes(index)) {
+                    cellElement.classList.add('recommended');
+                } else {
+                    cellElement.classList.remove('recommended'); // Ensure non-top recommendations are not highlighted
+                }
+            });
+
+
+            recommendations.forEach(rec => {
+                const li = document.createElement('li');
+                li.textContent = `(${rec.row}, ${rec.col}) - 확률: ${rec.probability.toFixed(1)}%`;
+                recommendationList.appendChild(li);
+            });
+        }
+
+        // Event Listeners (Manual calculate button is kept but real-time is primary)
+        calculateButton.addEventListener('click', calculateAndRecommend);
+        resetButton.addEventListener('click', initializeApp);
+
+        // Initialize the app on page load
+        initializeApp();
+    </script>
+</body>
+</html>
